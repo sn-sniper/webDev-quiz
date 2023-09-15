@@ -14,13 +14,12 @@ function Quiz() {
 
     useEffect(() => {
         if (quizStarted && !showScore && currentQuestion < quizData.length) {
-            // Start the timer when the quiz is started
             const timerInterval = setInterval(() => {
                 setTimer((prevTimer) => {
                     if (prevTimer <= 0) {
-                        // Time is up, end the quiz
-                        setShowScore(true);
                         clearInterval(timerInterval);
+                        setShowScore(true);
+                        setTimerMessage("Time's up! Quiz has ended."); // Set the timer message
 
                         // Store the user's score and time in Firebase
                         saveScore(
@@ -30,9 +29,12 @@ function Quiz() {
                         );
 
                         // Save to a text file
-                        saveToTextFile(shortID, userAnswers.filter((answer) => answer.isCorrect).length);
+                        saveToTextFile(
+                            shortID,
+                            userAnswers.filter((answer) => answer.isCorrect).length
+                        );
 
-                        return 0;
+                        return 0; // Timer is up
                     }
                     return prevTimer - 1;
                 });
@@ -43,6 +45,7 @@ function Quiz() {
             };
         }
     }, [quizStarted, currentQuestion, showScore, timer, userAnswers, shortID]);
+
 
 
     const handleQuizEnd = () => {
