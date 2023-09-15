@@ -16,12 +16,14 @@ const firestore = getFirestore(app);
 
 const saveScore = async (score, time, shortID) => {
     try {
-        const scoresCollectionRef = collection(firestore, "scores");
+        const scoresCollectionRef = collection(getFirestore(), "scores"); // Update this line
         await addDoc(scoresCollectionRef, { score, time, shortID });
         console.log("Score saved successfully.");
     } catch (error) {
         console.error("Error saving score: ", error);
     }
 };
-export { firestore, saveScore, collection, addDoc }; 
+
+
+export { firestore, saveScore, collection, addDoc };    
 

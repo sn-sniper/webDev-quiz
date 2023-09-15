@@ -1,36 +1,42 @@
 import React, { useState, useEffect } from "react";
-import quizData from "./quizData";
-import { firestore, saveScore } from "./firebase"; 
+import quizData from "./quizData";  
+import { firestore, saveScore, collection, addDoc } from "./firebase";
 import "./App.css"; // Import your CSS file
+import { saveAs } from "file-saver";
 
 function Quiz() {
     const [currentQuestion, setCurrentQuestion] = useState(0);
     const [userAnswers, setUserAnswers] = useState([]);
     const [showScore, setShowScore] = useState(false);
-    const [timer, setTimer] = useState(0); // Timer duration in seconds (will count down from 300 seconds = 5 minutes)
-    const [quizStarted, setQuizStarted] = useState(false); // Boolean to track if the quiz has started
-    const [shortID, setShortID] = useState(""); // User-entered 6-character ID
+    const [timer, setTimer] = useState(300);
+    const [quizStarted, setQuizStarted] = useState(false);
+    const [shortID, setShortID] = useState("");
 
     useEffect(() => {
         if (quizStarted && !showScore && currentQuestion < quizData.length) {
             // Start the timer when the quiz is started
             const timerInterval = setInterval(() => {
-                setTimer((prevTimer) => prevTimer - 1);
-            }, 1000);
+                setTimer((prevTimer) => {
+                    if (prevTimer <= 0) {
+                        // Time is up, end the quiz
+                        setShowScore(true);
+                        clearInterval(timerInterval);
 
-            // Stop the quiz if the timer ends and the quiz is not finished
-            if (timer === 0) {
-                clearInterval(timerInterval);
+                        // Store the user's score and time in Firebase
+                        saveScore(
+                            userAnswers.filter((answer) => answer.isCorrect).length,
+                            300 - timer,
+                            shortID
+                        );
 
-                // Store the user's score and time in Firebase
-                firestore.collection("scores").add({
-                    score: userAnswers.filter((answer) => answer.isCorrect).length,
-                    time: timer,
-                    shortID,
+                        // Save to a text file
+                        saveToTextFile(shortID, userAnswers.filter((answer) => answer.isCorrect).length);
+
+                        return 0;
+                    }
+                    return prevTimer - 1;
                 });
-
-                setShowScore(true);
-            }
+            }, 1000);
 
             return () => {
                 clearInterval(timerInterval);
@@ -38,48 +44,71 @@ function Quiz() {
         }
     }, [quizStarted, currentQuestion, showScore, timer, userAnswers, shortID]);
 
-    const handleGetStartedClick = () => {
-        // Prompt the user to enter a 6-character numerical ID
-        const enteredID = prompt("Enter a 6-character numerical ID:");
-        if (enteredID && /^[0-9]{6}$/.test(enteredID)) {
-            // Check if the entered ID is valid (6 characters, all numbers)
-            setShortID(enteredID);
-            setQuizStarted(true);
-            // Start the timer
-            setTimer(300); // 300 seconds = 5 minutes
-        } else {
-            alert("Please enter a valid 6-character numerical ID.");
+
+    const handleQuizEnd = () => {
+        // Save to text file
+        if (currentQuestion + 1 === quizData.length) {
+            setShowScore(true);
+
+            saveScore(
+                userAnswers.filter((answer) => answer.isCorrect).length,
+                300 - timer,
+                shortID
+            );
+
+            // Save to text file
+            saveToTextFile(shortID, score);
+
+            // Save to Firebase
+            const scoresCollectionRef = collection(firestore, "scores");
+            addDoc(scoresCollectionRef, {
+                score: userAnswers.filter((answer) => answer.isCorrect).length,
+                time: 300 - timer,
+                shortID
+            });
         }
+        console.log("awhefaiukefbauyifnkerau;ra");
     };
 
     const handleAnswerClick = (selectedOption) => {
-        if (!quizStarted) {
-            // Start the timer when the first answer is clicked
-            alert("Please click 'GO!' to start the quiz.");
-            return;
-        }
-
         const isCorrect = selectedOption === quizData[currentQuestion].answer;
         setUserAnswers([...userAnswers, { question: currentQuestion, isCorrect }]);
 
         if (currentQuestion + 1 < quizData.length) {
             setCurrentQuestion(currentQuestion + 1);
         } else {
-            // End of the quiz
+            handleQuizEnd();
+        }
+        if (currentQuestion + 1 === quizData.length) {
             setShowScore(true);
-            
-            saveScore(userAnswers.filter((answer) => answer.isCorrect).length, 300 - timer, shortID);
 
-            // Store the user's score and time in Firebase
-            firestore.collection("scores").add({
-                score: userAnswers.filter((answer) => answer.isCorrect).length,
-                time: timer,
-                shortID,
-            });
+            saveScore(
+                userAnswers.filter((answer) => answer.isCorrect).length,
+                300 - timer,
+                shortID
+            );
+
+            // Save to text file
+            saveToTextFile(shortID, score);
         }
     };
 
     const score = userAnswers.filter((answer) => answer.isCorrect).length;
+
+    const saveToTextFile = (shortID, score) => {
+        const textToWrite = `Short ID: ${shortID}\nScore: ${score}`;
+
+        const blob = new Blob([textToWrite], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${shortID}_score.txt`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+    };
+
 
     return (
         <div className="quiz">
@@ -93,20 +122,11 @@ function Quiz() {
                     <p>{quizData[currentQuestion].question}</p>
                     <div className="options">
                         {quizData[currentQuestion].options.map((option, index) => (
-                            <button
-                                key={index}
-                                onClick={() => handleAnswerClick(option)}
-                            >
+                            <button key={index} onClick={() => handleAnswerClick(option)}>
                                 {option}
                             </button>
                         ))}
                     </div>
-                </div>
-            )}
-
-            {!quizStarted && !showScore && (
-                <div>
-                    <button onClick={handleGetStartedClick}>Get Started</button>
                 </div>
             )}
         </div>
